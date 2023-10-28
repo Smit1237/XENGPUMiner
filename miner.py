@@ -3,12 +3,15 @@ import re, argparse, configparser
 from web3 import Web3
 from passlib.hash import argon2
 from random import choice, randrange
+from prometheus_client import start_http_server, Counter, Gauge
 
 import argparse
 import configparser
 
 import signal
 import json
+import pynvml
+pynvml.nvmlInit()
 
 def signal_handler(sig, frame):
     global running
@@ -30,6 +33,15 @@ args = parser.parse_args()
 worker_id = args.worker
 gpu_mode = args.gpu
 logging_on = args.logging_on
+
+hashing_rate = Gauge('hashes_per_second', 'Hashrate per second')
+network_diff = Gauge('net_diff', 'Network Difficulty')
+super_bl = Gauge('super_bl_count', 'Superblocks found during this session')
+xuni_bl = Gauge('xuni_bl_count', 'Xuni blocks found during this session')
+normal_bl = Gauge('normal_bl_count', 'Regular blocks found during this session')
+gpu_model_metric = Gauge('gpu_model', 'Model of the GPU', ['gpu_index'])
+gpu_temperature_metric = Gauge('gpu_temperature', 'Temperature of the GPU', ['gpu_index'])
+gpu_power_metric = Gauge('gpu_power_consumption', 'Power Consumption of the GPU (W)', ['gpu_index'])
 
 # Load the configuration file
 config = configparser.ConfigParser()
@@ -160,6 +172,18 @@ def write_difficulty_to_file(difficulty, filename='difficulty.txt'):
             file.write(difficulty)
     except Exception as e:
         print(f"An error occurred while writing difficulty to file: {e}")
+
+def gpu_stats():
+    while True:
+        device_count = pynvml.nvmlDeviceGetCount()
+        for i in range(device_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            temperature = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+            power_usage = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0  # Convert to watts
+            gpu_temperature_metric.labels(gpu_index=str(i)).set(temperature)
+            gpu_power_metric.labels(gpu_index=str(i)).set(power_usage)
+            #pynvml.nvmlShutdown()
+            time.sleep(1)
 
 def update_memory_cost_periodically():
     global memory_cost
@@ -582,6 +606,7 @@ if __name__ == "__main__":
     global running
     running = True
     updated_memory_cost = fetch_difficulty_from_server()
+    start_http_server(8000)
     if updated_memory_cost != memory_cost:
         if gpu_mode:
             memory_cost = updated_memory_cost
@@ -596,6 +621,10 @@ if __name__ == "__main__":
     hashrate_thread = threading.Thread(target=monitor_hash_rate)
     hashrate_thread.daemon = True  # This makes the thread exit when the main program exits
     hashrate_thread.start()
+    #Starts gpu prometheus exporter thread
+    gpu_query_thread = threading.Thread(target=gpu_stats)
+    gpu_query_thread.daemon = True
+    gpu_query_thread.start()
 
     genesis_block = Block(0, "0", "Genesis Block", "0", "0", "0")
     blockchain.append(genesis_block.to_dict())
@@ -608,6 +637,12 @@ if __name__ == "__main__":
 
         try:
             while True:  # Loop forever
+                hashing_rate.set(int(total_hash_rate))
+                super_bl.set(super_blocks_count)
+                xuni_bl.set(xuni_blocks_count)
+                normal_bl.set(normal_blocks_count)
+                network_diff.set(memory_cost)
+
                 if(not running):
                     break
                 time.sleep(2)  # Sleep for 2 seconds
