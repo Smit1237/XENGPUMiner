@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard</title>
+<style>
+  body {
+    background-color: #333;
+    color: white;
+    font-family: Arial, sans-serif;
+  }
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    padding: 10px;
+  }
+  .card {
+    background-color: #4CAF50;
+    padding: 20px;
+    border-radius: 5px;
+  }
+  .card.red {
+    background-color: #f44336;
+  }
+  .card > h2 {
+    margin: 0;
+    font-size: 2em;
+  }
+  .card > p {
+    margin: 1;
+    font-size: 2em;
+	font-weight: bold;
+  }
+  footer {
+    text-align: center;
+    background-color: #333;
+    padding: 10px;
+  }
+  mining_address {
+    font-weight: bold;
+    color: white;
+}
+</style>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  $(document).ready(function() {
+    setInterval(function() {
+      $.ajax({
+        url: '/data',
+        type: 'GET',
+        dataType: 'json',
+        success: function(data) {
+          $('#superblock-count').text(data.superblock_count);
+          $('#regularblock-count').text(data.regularblock_count);
+          $('#xuniblock-count').text(data.xuniblock_count);
+          $('#hashrate-count').text(data.hashrate_count);
+          $('#netdiff-count').text(data.netdiff_count);
+		  $('#mining_address').text(data.mining_address);
+        }
+      });
+    }, 1000);
+  });
+</script>
+</head>
+<body>
+
+<div class="dashboard">
+
+  <div class="card">
+    <h2>SuperBlock</h2>
+    <p id="superblock-count"></p>
+  </div>
+  
+  <div class="card">
+    <h2>Block</h2>
+    <p id="regularblock-count"></p>
+  </div>
+  
+  <div class="card">
+    <h2>Xuni</h2>
+    <p id="xuniblock-count"></p>
+  </div>
+  
+  <div class="card">
+    <h2>Hashrate</h2>
+    <p id="hashrate-count"></p>
+  </div>
+  
+  <div class="card">
+    <h2>Network Difficulty</h2>
+    <p id="netdiff-count"></p>
+  </div>
+  
+</div>
+<footer>
+  <p id="footer">Mining with: <span id="mining_address"></span></p>
+</footer>
+</body>
+</html>

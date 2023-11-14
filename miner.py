@@ -4,14 +4,51 @@ from web3 import Web3
 from passlib.hash import argon2
 from random import choice, randrange
 from prometheus_client import start_http_server, Counter, Gauge
+from flask import Flask, render_template, jsonify
+
 
 import argparse
 import configparser
 
 import signal
+import logging
 import json
 import pynvml
+
 pynvml.nvmlInit()
+
+app = Flask(__name__)
+
+log = logging.getLogger('werkzeug')
+log.disabled = True
+@app.route('/')
+def dashboard():
+    return render_template('dashboard.html')
+
+@app.route('/data')
+def data():
+    superblock_count = super_blocks_count
+    regularblock_count = normal_blocks_count
+    xuniblock_count = xuni_blocks_count
+    hashrate_count = total_hash_rate
+    netdiff_count = memory_cost
+    address = account
+    
+    data = {
+        'superblock_count': superblock_count,
+        'regularblock_count': regularblock_count,
+        'xuniblock_count': xuniblock_count,
+        'hashrate_count': hashrate_count,
+        'netdiff_count': netdiff_count,
+        'mining_address': address
+    }
+    
+    return jsonify(data)
+
+def run_flask_app():
+    app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
+
+
 
 def signal_handler(sig, frame):
     global running
@@ -625,6 +662,10 @@ if __name__ == "__main__":
     gpu_query_thread = threading.Thread(target=gpu_stats)
     gpu_query_thread.daemon = True
     gpu_query_thread.start()
+
+    webui_thread = threading.Thread(target=run_flask_app)
+    webui_thread.daemon = True
+    webui_thread.start()
 
     genesis_block = Block(0, "0", "Genesis Block", "0", "0", "0")
     blockchain.append(genesis_block.to_dict())
