@@ -30,7 +30,7 @@ def data():
     superblock_count = super_blocks_count
     regularblock_count = normal_blocks_count
     xuniblock_count = xuni_blocks_count
-    hashrate_count = total_hash_rate
+    hashrate_count = int(total_hash_rate)
     netdiff_count = memory_cost
     address = account
     
