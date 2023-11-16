@@ -56,8 +56,7 @@
           $('#regularblock-count').text(data.regularblock_count);
           $('#xuniblock-count').text(data.xuniblock_count);
           $('#hashrate-count').text(data.hashrate_count);
-          $('#netdiff-count').text(data.netdiff_count);
-		  $('#mining_address').text(data.mining_address);
+          $('#footer-link').attr('href', 'https://xen.pub/xblocks.php?addr=' + data.mining_address);
         }
       });
     }, 1000);
@@ -95,7 +94,7 @@
   
 </div>
 <footer>
-  <p id="footer">Mining with: <span id="mining_address"></span></p>
+  <p>Mining with: <a id="footer-link" href=""></a></p>
 </footer>
 </body>
 </html>
