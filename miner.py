@@ -62,6 +62,7 @@ parser = argparse.ArgumentParser(description="Process optional account and worke
 parser.add_argument('--worker', type=int, help='The worker id to use.')
 parser.add_argument('--gpu', type=str, help='Set to true to enable GPU mode, and to false to disable it.')
 parser.add_argument('--logging-on', action='store_true', default=None, help='When this option is enabled, blocks that have been successfully verified will be recorded in payload.log')
+parser.add_argument('--debug', action='store_true', default=None, help='When this option is enabled, more info output')
 
 # Parse the arguments
 args = parser.parse_args()
@@ -70,6 +71,7 @@ args = parser.parse_args()
 worker_id = args.worker
 gpu_mode = args.gpu
 logging_on = args.logging_on
+debug_output = args.debug
 
 hashing_rate = Gauge('hashes_per_second', 'Hashrate per second')
 network_diff = Gauge('net_diff', 'Network Difficulty')
@@ -119,6 +121,8 @@ else:
 print(f"\033[93mGPU Mode: {gpu_mode}\033[0m")
 if logging_on:
     print("\033[32mLogging verified blocks to payload.log file")
+if debug_output:
+    print("Output mode: Debug")
 
 def is_valid_ethereum_address(address: str) -> bool:
     # Check if the address matches the basic hexadecimal pattern
@@ -237,7 +241,7 @@ def update_memory_cost_periodically():
                 memory_cost = updated_memory_cost
                 write_difficulty_to_file(updated_memory_cost)
             print(f"Updating difficulty to {updated_memory_cost}")
-        time.sleep(5)
+        time.sleep(10)
 
 # Function to get difficulty level from the server
 def fetch_difficulty_from_server():
@@ -247,7 +251,8 @@ def fetch_difficulty_from_server():
         response_data = response.json()
         return str(response_data['difficulty'])
     except Exception as e:
-        print(f"An error occurred while fetching difficulty: {e}")
+        if debug_output:
+            print(f"An error occurred while fetching difficulty: {e}")
         return memory_cost  # Return last value if fetching fails
 
 def generate_random_sha256(max_length=128):
