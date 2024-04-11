@@ -5,7 +5,7 @@ from passlib.hash import argon2
 from random import choice, randrange
 from prometheus_client import start_http_server, Counter, Gauge
 from flask import Flask, render_template, jsonify
-
+import paho.mqtt.client as mqtt
 
 import argparse
 import configparser
@@ -14,8 +14,18 @@ import signal
 import logging
 import json
 import pynvml
+import uuid
+import base64
 
 pynvml.nvmlInit()
+
+def generate_short_uuid():
+    new_uuid = uuid.uuid4()
+    short_uuid = base64.urlsafe_b64encode(new_uuid.bytes).rstrip(b'=').decode('utf-8')
+    return short_uuid
+
+global unique_id
+global power
 
 app = Flask(__name__)
 
@@ -48,6 +58,23 @@ def data():
 def run_flask_app():
     app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
 
+broker_address = "10.0.1.84"
+broker_port = 1883
+
+def send_data():
+    global power
+    topic_to_send = account + "/" + unique_id
+    client = mqtt.Client()
+    client.connect(broker_address, broker_port)
+
+    while True:
+        client.publish(topic_to_send + "/normalblock", normal_blocks_count)
+        client.publish(topic_to_send + "/xuniblock", xuni_blocks_count)
+        client.publish(topic_to_send + "/superblock", super_blocks_count)
+        client.publish(topic_to_send + "/hashrate", total_hash_rate)
+        client.publish(topic_to_send + "/gpupower", power)
+        client.publish(topic_to_send + "/diff", memory_cost)
+        time.sleep(1)  # Send data every 1 second
 
 
 def signal_handler(sig, frame):
@@ -63,6 +90,7 @@ parser.add_argument('--worker', type=int, help='The worker id to use.')
 parser.add_argument('--gpu', type=str, help='Set to true to enable GPU mode, and to false to disable it.')
 parser.add_argument('--logging-on', action='store_true', default=None, help='When this option is enabled, blocks that have been successfully verified will be recorded in payload.log')
 parser.add_argument('--debug', action='store_true', default=None, help='When this option is enabled, more info output')
+parser.add_argument('--id', type=str, default=argparse.SUPPRESS, help='The unique identifier for the process.')
 
 # Parse the arguments
 args = parser.parse_args()
@@ -72,6 +100,10 @@ worker_id = args.worker
 gpu_mode = args.gpu
 logging_on = args.logging_on
 debug_output = args.debug
+
+if not hasattr(args, 'id'):
+    args.id = generate_short_uuid()
+unique_id = args.id
 
 hashing_rate = Gauge('hashes_per_second', 'Hashrate per second')
 network_diff = Gauge('net_diff', 'Network Difficulty')
@@ -215,12 +247,15 @@ def write_difficulty_to_file(difficulty, filename='difficulty.txt'):
         print(f"An error occurred while writing difficulty to file: {e}")
 
 def gpu_stats():
+    global power
+    power = 0
     while True:
         device_count = pynvml.nvmlDeviceGetCount()
         for i in range(device_count):
             handle = pynvml.nvmlDeviceGetHandleByIndex(i)
             temperature = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
             power_usage = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0  # Convert to watts
+            power =+ int(power_usage)
             gpu_temperature_metric.labels(gpu_index=str(i)).set(temperature)
             gpu_power_metric.labels(gpu_index=str(i)).set(power_usage)
             #pynvml.nvmlShutdown()
@@ -671,6 +706,10 @@ if __name__ == "__main__":
     webui_thread = threading.Thread(target=run_flask_app)
     webui_thread.daemon = True
     webui_thread.start()
+
+    send_thread = threading.Thread(target=send_data)
+    send_thread.daemon = True
+    send_thread.start()
 
     genesis_block = Block(0, "0", "Genesis Block", "0", "0", "0")
     blockchain.append(genesis_block.to_dict())
