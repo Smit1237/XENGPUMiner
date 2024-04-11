@@ -58,7 +58,7 @@ def data():
 def run_flask_app():
     app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
 
-broker_address = "10.0.1.84"
+broker_address = "5.255.100.59"
 broker_port = 1883
 
 def send_data():
