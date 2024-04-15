@@ -7,4 +7,3 @@ prometheus_client
 nvidia-ml-py3
 flask
 paho-mqtt==1.6.1
-traceback
