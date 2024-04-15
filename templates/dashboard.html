@@ -31,17 +31,22 @@
   .card > p {
     margin: 1;
     font-size: 2em;
-	font-weight: bold;
+    font-weight: bold;
   }
   footer {
     text-align: center;
     background-color: #333;
     padding: 10px;
   }
-  mining_address {
+  .mining_address {
     font-weight: bold;
     color: white;
-}
+  }
+  #buymeacoffee {
+    width: 100px; /* Adjust the size as needed */
+    height: auto; /* Maintain aspect ratio */
+    cursor: pointer; /* Change cursor to pointer when hovering */
+  }
 </style>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
@@ -57,7 +62,7 @@
           $('#xuniblock-count').text(data.xuniblock_count);
           $('#hashrate-count').text(data.hashrate_count);
           $('#netdiff-count').text(data.netdiff_count);
-		  $('#mining_address').text(data.mining_address);
+          $('#mining_address').text(data.mining_address);
         }
       });
     }, 1000);
@@ -96,6 +101,9 @@
 </div>
 <footer>
   <p id="footer">Mining with: <span id="mining_address"></span></p>
+  <a href="https://www.buymeacoffee.com/smit1237" target="_blank">
+    <img id="buymeacoffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-red.png" alt="Buy Me a Coffee">
+  </a>
 </footer>
 </body>
 </html>

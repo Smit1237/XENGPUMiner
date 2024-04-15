@@ -16,6 +16,7 @@ import json
 import pynvml
 import uuid
 import base64
+import traceback
 
 pynvml.nvmlInit()
 
@@ -26,7 +27,7 @@ def generate_short_uuid():
 
 global unique_id
 global power
-
+mqtt_error = None
 app = Flask(__name__)
 
 log = logging.getLogger('werkzeug')
@@ -37,6 +38,7 @@ def dashboard():
 
 @app.route('/data')
 def data():
+    global mqtt_error
     superblock_count = super_blocks_count
     regularblock_count = normal_blocks_count
     xuniblock_count = xuni_blocks_count
@@ -50,7 +52,8 @@ def data():
         'xuniblock_count': xuniblock_count,
         'hashrate_count': hashrate_count,
         'netdiff_count': netdiff_count,
-        'mining_address': address
+        'mining_address': address,
+        'mqtt_error': mqtt_error  # Add mqtt_error to the data dictionary
     }
     
     return jsonify(data)
@@ -58,24 +61,76 @@ def data():
 def run_flask_app():
     app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
 
+#broker_address = "jfd818f0.ala.eu-central-1.emqxsl.com"
+#broker_port = 8883
+
+#def send_data():
+#    global power
+#    username = 'miner'
+#    password = 'miner'
+#    topic_to_send = account + "/" + unique_id
+#    client = mqtt.Client()
+#    client.username_pw_set(username, password)
+#    client.tls_set(ca_certs='./emqxsl-ca.crt')
+#    client.connect(broker_address, broker_port)
+#
+#    while True:
+#        client.publish(topic_to_send + "/normalblock", normal_blocks_count)
+#        client.publish(topic_to_send + "/xuniblock", xuni_blocks_count)
+#        client.publish(topic_to_send + "/superblock", super_blocks_count)
+#        client.publish(topic_to_send + "/hashrate", total_hash_rate)
+#        client.publish(topic_to_send + "/gpupower", power)
+#        client.publish(topic_to_send + "/diff", memory_cost)
+#        time.sleep(1)  # Send data every 1 second
+
+def parse_error(exception):
+    error_message = traceback.format_exception_only(type(exception), exception)[-1].strip()
+    return error_message
+
+def on_connect(client, userdata, flags, rc):
+    global mqtt_error
+    
+    if rc == 0:
+        print("Connected to MQTT broker")
+        mqtt_error = None  # Reset mqtt_error if connection is successful
+    else:
+        print("Failed to connect to MQTT broker with error code {}".format(rc))
+        mqtt_error = "Failed to connect to MQTT broker with error code {}".format(rc)
+
 broker_address = "5.255.100.59"
 broker_port = 1883
 
 def send_data():
-    global power
-    topic_to_send = account + "/" + unique_id
+    global power, mqtt_error
+    
     client = mqtt.Client()
+    client.on_connect = on_connect
     client.connect(broker_address, broker_port)
-
+    client.loop_start()  # Start a background thread for MQTT communication
+    
     while True:
-        client.publish(topic_to_send + "/normalblock", normal_blocks_count)
-        client.publish(topic_to_send + "/xuniblock", xuni_blocks_count)
-        client.publish(topic_to_send + "/superblock", super_blocks_count)
-        client.publish(topic_to_send + "/hashrate", total_hash_rate)
-        client.publish(topic_to_send + "/gpupower", power)
-        client.publish(topic_to_send + "/diff", memory_cost)
-        time.sleep(1)  # Send data every 1 second
+        try:
+            topic_to_send = account + "/" + unique_id
+            
+            # Periodically check if connected and reconnect if necessary
+            if not client.is_connected():
+                print("MQTT client not connected. Reconnecting...")
+                client.reconnect()
+            
+            # Publish data
+            client.publish(topic_to_send + "/normalblock", normal_blocks_count)
+            client.publish(topic_to_send + "/xuniblock", xuni_blocks_count)
+            client.publish(topic_to_send + "/superblock", super_blocks_count)
+            client.publish(topic_to_send + "/hashrate", total_hash_rate)
+            client.publish(topic_to_send + "/gpupower", power)
+            client.publish(topic_to_send + "/diff", memory_cost)
+            
+            time.sleep(1)  # Send data every 1 second
 
+        except Exception as e:
+            mqtt_error = parse_error(e)  # Store the traceback of the error
+            print("MQTT Error:", mqtt_error)
+            time.sleep(5)  # Wait for 5 seconds before trying again
 
 def signal_handler(sig, frame):
     global running
