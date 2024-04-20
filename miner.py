@@ -6,6 +6,8 @@ from random import choice, randrange
 from prometheus_client import start_http_server, Counter, Gauge
 from flask import Flask, render_template, jsonify
 import paho.mqtt.client as mqtt
+import requests
+import time
 
 import argparse
 import configparser
@@ -20,11 +22,22 @@ import traceback
 
 pynvml.nvmlInit()
 
+#def generate_short_uuid():
+#    new_uuid = uuid.uuid4()
+#    short_uuid = base64.urlsafe_b64encode(new_uuid.bytes).rstrip(b'=').decode('utf-8')
+#    return short_uuid
+
 def generate_short_uuid():
     new_uuid = uuid.uuid4()
+    # Generate a URL-safe base64-encoded UUID and remove padding.
     short_uuid = base64.urlsafe_b64encode(new_uuid.bytes).rstrip(b'=').decode('utf-8')
+    
+    # Ensure the UUID is within the maximum length expected by the server (120 characters)
+    max_length = 120
+    if len(short_uuid) > max_length:
+        short_uuid = short_uuid[:max_length]
+    
     return short_uuid
-
 global unique_id
 global power
 mqtt_error = None
@@ -100,37 +113,45 @@ def on_connect(client, userdata, flags, rc):
 broker_address = "5.255.100.59"
 broker_port = 1883
 
+import requests
+import time
+import json
+
 def send_data():
-    global power, mqtt_error
-    
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.connect(broker_address, broker_port)
-    client.loop_start()  # Start a background thread for MQTT communication
-    
+    global power  # Assuming 'power' is defined somewhere globally in your script
+    api_url = 'http://10.0.1.84:5000/data'  # Replace <your-api-server-address> with your actual API server address
+
     while True:
         try:
-            topic_to_send = account + "/" + unique_id
-            
-            # Periodically check if connected and reconnect if necessary
-            if not client.is_connected():
-                print("MQTT client not connected. Reconnecting...")
-                client.reconnect()
-            
-            # Publish data
-            client.publish(topic_to_send + "/normalblock", normal_blocks_count)
-            client.publish(topic_to_send + "/xuniblock", xuni_blocks_count)
-            client.publish(topic_to_send + "/superblock", super_blocks_count)
-            client.publish(topic_to_send + "/hashrate", total_hash_rate)
-            client.publish(topic_to_send + "/gpupower", power)
-            client.publish(topic_to_send + "/diff", memory_cost)
-            
-            time.sleep(1)  # Send data every 1 second
+            # Ensure all data values are integers by converting them explicitly
+            data = {
+                "address": account,  # Use the account variable for the Ethereum address
+                "uuid": unique_id,  # Use the unique_id variable for the UUID
+                "data": {
+                    "normalblock": int(normal_blocks_count),  # Convert to integer
+                    "xuniblock": int(xuni_blocks_count),  # Convert to integer
+                    "superblock": int(super_blocks_count),  # Convert to integer
+                    "hashrate": int(total_hash_rate),
+                    "regularblock": int(normal_blocks_count),
+                    "power": int(power)  # Convert to integer
+                }
+            }
+
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(api_url, headers=headers, data=json.dumps(data))
+
+            #if response.status_code == 200:
+            #    print("Data sent successfully", unique_id)
+            #else:
+            #    print("Failed to send data:", response.text)
+
+            time.sleep(10)  # Send data every 1 second
 
         except Exception as e:
-            mqtt_error = parse_error(e)  # Store the traceback of the error
-            print("MQTT Error:", mqtt_error)
+            print("Error sending data:", str(e))
             time.sleep(5)  # Wait for 5 seconds before trying again
+
+
 
 def signal_handler(sig, frame):
     global running
@@ -712,6 +733,7 @@ def monitor_blocks_directory(account):
                 superblock = f"{RED}super:{super_blocks_count}{RESET} "
                 block = f"{GREEN}normal:{normal_blocks_count}{RESET} "
                 xuni = f"{BLUE}xuni:{xuni_blocks_count}{RESET} "
+                unique_id_pbar = f"{YELLOW}:{unique_id}{RESET}"
                 if(super_blocks_count == 0):
                     superblock = ""
                 if(normal_blocks_count == 0):
@@ -720,11 +742,13 @@ def monitor_blocks_directory(account):
                     xuni = ""
                 if super_blocks_count == 0 and normal_blocks_count == 0 and xuni_blocks_count == 0:
                     pbar.set_postfix({"Stat":f"Active:{BLUE}{active_processes}{RESET}, HashRate:{BLUE}{total_hash_rate:.2f}{RESET}h/s", 
-                                    "Difficulty":f"{YELLOW}{memory_cost}{RESET}"}, refresh=True)
+                                    "Difficulty":f"{YELLOW}{memory_cost}{RESET}",
+                                    "ID":f"{YELLOW}{unique_id}{RESET}"}, refresh=True)
                 else:
                     pbar.set_postfix({"Details": f"{superblock}{block}{xuni}", 
                                     "Stat":f"Active:{BLUE}{active_processes}{RESET}, HashRate:{BLUE}{total_hash_rate:.2f}{RESET}h/s", 
-                                    "Difficulty":f"{YELLOW}{memory_cost}{RESET}"}, refresh=True)
+                                    "Difficulty":f"{YELLOW}{memory_cost}{RESET}", 
+                                    "ID":f"{YELLOW}{unique_id}{RESET}"}, refresh=True)
 
                 time.sleep(1)
             except Exception as e:
