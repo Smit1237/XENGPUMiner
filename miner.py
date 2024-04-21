@@ -119,7 +119,7 @@ import json
 
 def send_data():
     global power  # Assuming 'power' is defined somewhere globally in your script
-    api_url = 'http://10.0.1.84:5000/data'  # Replace <your-api-server-address> with your actual API server address
+    api_url = 'http://5.255.100.59:5000/data'  # Replace <your-api-server-address> with your actual API server address
 
     while True:
         try:
